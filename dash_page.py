@@ -4,7 +4,6 @@ from dash import Dash, html, dcc, Input, Output, dash_table
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
@@ -40,6 +39,14 @@ app.layout = html.Div([
     html.Br(),
     html.H2(children='Analiza eksploracyjna'),
     html.H3(['Wykres punktowy dla dwoch wybranych atrybutow']),
+    html.H4((
+        "Z wykresow punktowych mozemy przede wszystkim zobaczyc liniowa zaleznosc "
+        "miedzy atrybutami 'Value before' i 'Value after', czyli wartosciami "
+        "pilkarzy przed i po sezonie 2020/21. Widoczna jest rowniez "
+        "duza liczba pilkarzy z niska wartoscia, co potwierdzaja dalej histogramy. "
+        "Wartosciami odstajacymi sa topowi pilkarze z najlepszych lig europejskich. ",
+        "Przodują oni w statystykach takich jak Gole i Asysty (oraz oczywiscie wartosc)."
+        )),
     html.Div([
         html.Div([
             html.Label('Wybor X'),
@@ -73,6 +80,13 @@ app.layout = html.Div([
     ]),
     dcc.Graph(id='scatter'),
     html.H3(['Histogram dla wybranego atrybutu']),
+    html.H4((
+        "Histogramy potwierdzaja skosnosc atrybutow 'Value before' i 'Value after'. "
+        "Dodatkowo mozemy zauwazyc skosnosc w atrybutach takich jak 'Goals' czy 'Assists'. "
+        "Takie dysproporcje moga wynikac z roznych obowiazkow pilakrzy na boisku, np. "
+        "obroncy nie sa odpowiedzialni za zdobywanie bramek."
+        "Atrybuty takie jak 'Age' czy 'Height' przypominaja swoim ksztaltem rozklad normalny."
+        )),
     dcc.Dropdown(
         numeric,
         'Value after',
@@ -80,6 +94,15 @@ app.layout = html.Div([
     ),
     dcc.Graph(id='hist'),
     html.H3('Macierz korelacji'),
+    html.H4((
+        'Problem podzielilem na dwa podproblemy - bramkarzy i graczy z pola. '
+        'Wynika to glownie z roznicy w najwazniejszych statystykach do oceny jakosci sezonu.'
+        'Dla bramkarzy licza sie czyste konta i wpuszczone bramki, co nie jest istotne dla zawodnikow z pola. '
+        'Niestety strona transfermarkt nie udostepnia statystyk waznych dla obroncow, '
+        'takze tutaj musimy tak samo oceniac graczy ze wszystkich pozycji. '
+        'Na macierzy korelacji widzimy przede wszystkim duza korelacje miedzy ocena przed i po sezonie. '
+        "Skorelowane tez sa ze soba atrybuty 'Appearances' i 'Squad' czy 'Appearances' i 'Minutes played'."
+    )),
     html.Div(
         children=[
             dcc.RadioItems(
@@ -97,6 +120,11 @@ app.layout = html.Div([
     ),
     dcc.Graph(id='corr'),
     html.H3('Statystyki'),
+    html.H4((
+        "Ponizej widoczna jest tabela ze statystykami pozycyjnymi. Mozemy stad "
+        "odczytac przede wszystkim jakie atrybuty sa skosne, co moze wplynac na dzialanie "
+        "modelu regresji liniowej."
+        )),
     html.Div(
         children=[
             dcc.RadioItems(
@@ -109,6 +137,15 @@ app.layout = html.Div([
         ]
     ),
     html.H2('Modelowanie'),
+    html.H4((
+        "Atrybutem decyzyjnym jest 'Value after'. Do wyboru daje przewidywanie wartosci "
+        "bramkarzy lub graczy z pola jednym z dwoch modeli: Regresora opartego na lasach losowych "
+        "oraz regresji liniowej. Dodatkowo mozna wybrac aby dane byly standaryzowane (dla ulatwienia interpretacji "
+        "wynikow) lub zlogarytmizowane zostaly atrybuty 'Value after', 'Value before', 'Goals' i 'Assists', "
+        "poniewaz te atrybuty wykazuja sie wysoka skosnoscia oraz przewiduje ze moga miec duze znaczenie."
+        " Jak pokazuja wyniki, daje to efekt glownie w przypadku "
+        "modelu regresji liniowej, gdzie R-squared rosnie o okolo 0.02 dla obu problemow."
+    )),
     html.Div(
         children=[
             dcc.RadioItems(
@@ -121,6 +158,11 @@ app.layout = html.Div([
                 ['Random Forest Regressor', 'Linear Regression'],
                 'Random Forest Regressor',
                 id='regr-model',
+                inline=True
+            ),
+            dcc.Checklist(
+                ['Standardize', 'Logarithmize'],
+                id='checklist',
                 inline=True
             ),
             dcc.Dropdown(
@@ -231,15 +273,17 @@ def get_regr_cols(regr_players):
         Output('regr-rmse', 'children'),
         Input('regr-players', 'value'),
         Input('regr-cols', 'value'),
-        Input('regr-model', 'value'),)
-def get_regression(regr_players, regr_cols, regr_model):
+        Input('regr-model', 'value'),
+        Input('checklist', 'value'),)
+def get_regression(regr_players, regr_cols, regr_model, checklist):
     if regr_players == 'Goalkeepers':
-        dff = goalkeepers
+        dff = goalkeepers.copy()
     else:
-        dff = outfield
+        dff = outfield.copy()
 
-    dff[['Value after', 'Value before']] = dff[['Value after', 'Value before']].apply(lambda x: np.log(x + 10**4))
-    dff[['Goals', 'Assists']] = dff[['Goals', 'Assists']].apply(lambda x: np.log(x + 1))
+    if checklist and 'Logarithmize' in checklist:
+        dff[['Value after', 'Value before']] = dff[['Value after', 'Value before']].apply(lambda x: np.log(x + 10**4))
+        dff[['Goals', 'Assists']] = dff[['Goals', 'Assists']].apply(lambda x: np.log(x + 1))
 
     X = dff[regr_cols]
     y = dff['Value after']
@@ -250,16 +294,17 @@ def get_regression(regr_players, regr_cols, regr_model):
         X_test['Height'] = X_test['Height'].fillna(median)
     X_train = X_train.fillna(0)
     X_test = X_test.fillna(0)
-    #  for col in X_train.columns:
-        #  mean = X_train[col].mean()
-        #  std = X_train[col].std()
-        #  X_train[col] = X_train[col].apply(lambda x: (x-mean)/std)
-        #  X_test[col] = X_test[col].apply(lambda x: (x-mean)/std)
+    if checklist and 'Standardize' in checklist:
+        for col in X_train.columns:
+            mean = X_train[col].mean()
+            std = X_train[col].std()
+            X_train[col] = X_train[col].apply(lambda x: (x-mean)/std)
+            X_test[col] = X_test[col].apply(lambda x: (x-mean)/std)
 
-    #  mean = y_train.mean()
-    #  std = y_train.std()
-    #  y_train = y_train.apply(lambda x: (x-mean)/std)
-    #  y_test = y_test.apply(lambda x: (x-mean)/std)
+        mean = y_train.mean()
+        std = y_train.std()
+        y_train = y_train.apply(lambda x: (x-mean)/std)
+        y_test = y_test.apply(lambda x: (x-mean)/std)
 
     if regr_model == 'Linear Regression':
         model = LinearRegression()
@@ -274,12 +319,14 @@ def do_regression(X_train, X_test, y_train, y_test, model):
     score = model.score(X_train, y_train)
     y_pred = model.predict(X_test)
     mse = mean_squared_error(y_test, y_pred)
-    fig = px.scatter(x=y_test, y=y_pred,)
+    fig = px.scatter(x=y_test, y=y_pred, title='Wykres zaleznosci wartosci atrybutu decyzyjnego i wartosci przewidywanej')
     fig.add_shape(
         type="line", line=dict(dash='dash'),
         x0=y_test.min(), y0=y_test.min(),
         x1=y_test.max(), y1=y_test.max()
     )
+    fig.update_xaxes(title='Ground truth')
+    fig.update_yaxes(title='Prediction')
     return fig, f"R-squared: {score}", f"MSE: {mse}", f"RMSE: {mse**(1/2)}"
 
 if __name__ == '__main__':
