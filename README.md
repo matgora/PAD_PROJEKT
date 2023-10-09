@@ -1,6 +1,6 @@
-# PAD_PROJEKT
-Analiza wartosci pilkarzy na podstawie danych z transfermarkt.com
+# Transfermarkt analysis
+Analysis of player prices based on transfermarkt.com data.
 
-1. ```Scraper.ipynb``` - zeszyt z metodami do pobierania danych z transfermarkt. Scraping całości zajął ponad 2 dni (niestety z 1/3 brakujących danych).
-2. ```Preprocessing.ipynb``` - zeszyt ze wstepna analiza i przetworzeniem danych.
-3. ```dash_page.py``` - dashboard stworzony przy pomocy biblioteki ```dash```.
+1. ```Scraper.ipynb``` - jupyter notebook for scraping the data from transfermarkt.
+2. ```Preprocessing.ipynb``` - jupyter notebook with initial analysis and data preprocessing.
+3. ```dash_page.py``` - dashboard created with the ```dash``` library.
